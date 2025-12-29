@@ -19,15 +19,12 @@ export interface LoginCredentials {
 export type UserLevel = 1 | 2 | 3;
 
 export interface RegisterData {
-	level?: UserLevel;
 	email?: string;
 	username?: string;
 	password?: string;
 	firstName?: string;
 	lastName?: string;
-	// Level 2+ required
 	nrc?: string;
-	// Level 3+ required
 	phoneNumber?: string;
 	address?: string;
 }

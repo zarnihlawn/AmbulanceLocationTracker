@@ -18,8 +18,6 @@
 		auth = null;
 	}
 
-	let levelValue = $state<string>('');
-	let level = $derived(levelValue === '' ? undefined : Number(levelValue) as 1 | 2 | 3);
 	let firstName = $state('');
 	let lastName = $state('');
 	let username = $state('');
@@ -39,19 +37,6 @@
 		if (password.length < 8) {
 			return 'Password must be at least 8 characters';
 		}
-		// Level 2+ requires NRC
-		if (level && level >= 2 && !nrc.trim()) {
-			return 'NRC is required for level 2 and above';
-		}
-		// Level 3+ requires phoneNumber and address
-		if (level && level >= 3) {
-			if (!phoneNumber.trim()) {
-				return 'Phone number is required for level 3 and above';
-			}
-			if (!address.trim()) {
-				return 'Address is required for level 3 and above';
-			}
-		}
 		return null;
 	}
 
@@ -69,7 +54,6 @@
 
 		try {
 			const registerData: RegisterData = {
-				...(level && { level }),
 				...(email && { email }),
 				...(username && { username }),
 				...(password && { password }),
@@ -96,7 +80,7 @@
 
 			const data = await response.json();
 			console.log('Register response:', data);
-			
+
 			// Store tokens and user data if provided (registration might auto-login)
 			if (data.accessToken && data.refreshToken) {
 				setTokens(data.accessToken, data.refreshToken);
@@ -150,29 +134,11 @@
 			{/if}
 
 			<form onsubmit={handleSubmit} class="space-y-4" novalidate>
-				<div class="form-control w-full">
-					<label class="label" for="level">
-						<span class="label-text">User Level</span>
-					</label>
-					<select
-						id="level"
-						name="level"
-						bind:value={levelValue}
-						class="d-select d-select-bordered w-full"
-						disabled={loading}
-					>
-						<option value="">Select level (optional)</option>
-						<option value="1">Level 1</option>
-						<option value="2">Level 2 (requires NRC)</option>
-						<option value="3">Level 3 (requires NRC, Phone, Address)</option>
-					</select>
-				</div>
-
 				<Input
 					type="text"
 					label="First Name"
 					name="firstName"
-					placeholder="Enter your first name"
+					placeholder="Enter your first name (optional)"
 					bind:value={firstName}
 					disabled={loading}
 				/>
@@ -181,7 +147,7 @@
 					type="text"
 					label="Last Name"
 					name="lastName"
-					placeholder="Enter your last name"
+					placeholder="Enter your last name (optional)"
 					bind:value={lastName}
 					disabled={loading}
 				/>
@@ -190,7 +156,7 @@
 					type="text"
 					label="Username"
 					name="username"
-					placeholder="Enter your username"
+					placeholder="Enter your username (optional)"
 					bind:value={username}
 					disabled={loading}
 				/>
@@ -199,7 +165,7 @@
 					type="email"
 					label="Email"
 					name="email"
-					placeholder="Enter your email"
+					placeholder="Enter your email (optional)"
 					bind:value={email}
 					disabled={loading}
 				/>
@@ -224,48 +190,38 @@
 					required
 				/>
 
-				{#if level && level >= 2}
-					<Input
-						type="text"
-						label="NRC"
-						name="nrc"
-						placeholder="Enter your NRC"
-						bind:value={nrc}
-						disabled={loading}
-						required={level >= 2}
-					/>
-				{/if}
+				<Input
+					type="text"
+					label="NRC"
+					name="nrc"
+					placeholder="Enter your NRC (optional)"
+					bind:value={nrc}
+					disabled={loading}
+				/>
 
-				{#if level && level >= 3}
-					<Input
-						type="tel"
-						label="Phone Number"
-						name="phoneNumber"
-						placeholder="Enter your phone number"
-						bind:value={phoneNumber}
-						disabled={loading}
-						required={level >= 3}
-					/>
+				<Input
+					type="tel"
+					label="Phone Number"
+					name="phoneNumber"
+					placeholder="Enter your phone number (optional)"
+					bind:value={phoneNumber}
+					disabled={loading}
+				/>
 
-					<div class="form-control w-full">
-						<label class="label" for="address">
-							<span class="label-text">Address</span>
-							{#if level >= 3}
-								<span class="label-text-alt text-error">*</span>
-							{/if}
-						</label>
-						<textarea
-							id="address"
-							name="address"
-							placeholder="Enter your address"
-							bind:value={address}
-							required={level >= 3}
-							disabled={loading}
-							class="d-textarea d-textarea-bordered w-full"
-							rows="3"
-						></textarea>
-					</div>
-				{/if}
+				<div class="form-control w-full">
+					<label class="label" for="address">
+						<span class="label-text">Address</span>
+					</label>
+					<textarea
+						id="address"
+						name="address"
+						placeholder="Enter your address (optional)"
+						bind:value={address}
+						disabled={loading}
+						class="d-textarea d-textarea-bordered w-full"
+						rows="3"
+					></textarea>
+				</div>
 
 				<Button type="submit" variant="primary" block loading={loading} disabled={loading}>
 					Sign Up

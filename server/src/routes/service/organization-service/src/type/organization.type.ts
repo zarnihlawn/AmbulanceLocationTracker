@@ -7,11 +7,11 @@ export interface CreateOrganizationDto {
 }
 
 export interface UpdateOrganizationDto {
-  ownerId: string;
-  name: string;
-  description: string;
-  profile: string;
-  banner: string;
+  ownerId?: string;
+  name?: string;
+  description?: string;
+  profile?: string | null;
+  banner?: string | null;
 }
 
 export interface OrganizationResponse {

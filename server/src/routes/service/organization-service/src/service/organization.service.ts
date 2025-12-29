@@ -63,10 +63,12 @@ export class OrganizationService {
       );
     }
 
-    if (!data.ownerId || !data.name || !data.description) {
-      throw new Error(
-        "Owner Id, Name, Description can't be empty.",
-      );
+    // Only validate fields that are being updated (not undefined)
+    if (data.name !== undefined && data.name !== null && !data.name.trim()) {
+      throw new Error('Name cannot be empty');
+    }
+    if (data.description !== undefined && data.description !== null && !data.description.trim()) {
+      throw new Error('Description cannot be empty');
     }
 
     const updated = await this.organizationRepo.update(
@@ -83,7 +85,7 @@ export class OrganizationService {
     return updated;
   }
 
-  async deleteUser(id: string) {
+  async deleteOrganization(id: string) {
     const existing =
       await this.organizationRepo.findById(id);
 

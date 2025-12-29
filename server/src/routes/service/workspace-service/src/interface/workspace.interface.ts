@@ -6,10 +6,10 @@ export interface CreateWorkspaceDto {
 }
 
 export interface UpdateWorkspaceDto {
-  organizationId: string;
-  featureId: string;
-  name: string;
-  description: string;
+  organizationId?: string;
+  featureId?: string;
+  name?: string;
+  description?: string;
 }
 
 export interface WorkspaceResponse {

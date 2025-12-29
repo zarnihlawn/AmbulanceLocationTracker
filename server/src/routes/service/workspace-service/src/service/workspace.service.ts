@@ -52,10 +52,22 @@ export class WorkspaceService {
       throw new Error(`Workspace with id ${id} not found`);
     }
 
+    // Only validate fields that are being updated (not undefined)
+    if (data.name !== undefined && data.name !== null && !data.name.trim()) {
+      throw new Error('Name cannot be empty');
+    }
+    if (data.description !== undefined && data.description !== null && !data.description.trim()) {
+      throw new Error('Description cannot be empty');
+    }
+
     const updated = await this.workspaceRepo.update(
       id,
       data,
     );
+
+    if (!updated) {
+      throw new Error(`Failed to update workspace with id ${id}`);
+    }
 
     return updated;
   }

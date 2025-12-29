@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { db } from '../db';
 import { OrganizationRepository } from '../repo/organization.repo';
-import type { CreateOrganizationDto } from '../type/organization.type';
+import type { CreateOrganizationDto, UpdateOrganizationDto } from '../type/organization.type';
 import { OrganizationService } from '../service/organization.service';
 
 const organizationRepo = new OrganizationRepository(db);
@@ -66,6 +66,41 @@ export const organizationRoutes = new Hono()
         error instanceof Error
           ? error.message
           : 'Organization not found';
+      return c.json({ error: message }, 404);
+    }
+  })
+  // UPDATE
+  .patch('/:id', async (c) => {
+    try {
+      const id = c.req.param('id');
+      const body = await c.req.json<UpdateOrganizationDto>();
+      const organization = await organizationService.updateOrganization(id, body);
+      return c.json(organization);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to update organization';
+      const statusCode = message.includes('not found')
+        ? 404
+        : 400;
+      return c.json({ error: message }, statusCode);
+    }
+  })
+  // DELETE
+  .delete('/:id', async (c) => {
+    try {
+      const id = c.req.param('id');
+      await organizationService.deleteOrganization(id);
+      return c.json(
+        { message: 'Organization deleted successfully' },
+        200,
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to delete organization';
       return c.json({ error: message }, 404);
     }
   });

@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { WorkspaceRepository } from '../repo/workspace.repo';
 import { db } from '../db';
 import { WorkspaceService } from '../service/workspace.service';
-import { type CreateWorkspaceDto } from '../interface/workspace.interface';
+import { type CreateWorkspaceDto, type UpdateWorkspaceDto } from '../interface/workspace.interface';
 
 const workspaceRepo = new WorkspaceRepository(db);
 const workspaceService = new WorkspaceService(
@@ -17,10 +17,11 @@ export const workspaceRoutes = new Hono()
         await workspaceService.createWorkspace(body);
       return c.json(workspace, 201);
     } catch (error) {
-      error instanceof Error
-        ? error.message
-        : `Failed to create workspacce`;
-      return;
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to create workspace';
+      return c.json({ error: message }, 400);
     }
   })
   .get('/', async (c) => {
@@ -63,6 +64,41 @@ export const workspaceRoutes = new Hono()
         error instanceof Error
           ? error.message
           : 'Workspace not found';
+      return c.json({ error: message }, 404);
+    }
+  })
+  // UPDATE
+  .patch('/:id', async (c) => {
+    try {
+      const id = c.req.param('id');
+      const body = await c.req.json<UpdateWorkspaceDto>();
+      const workspace = await workspaceService.updateWorkspace(id, body);
+      return c.json(workspace);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to update workspace';
+      const statusCode = message.includes('not found')
+        ? 404
+        : 400;
+      return c.json({ error: message }, statusCode);
+    }
+  })
+  // DELETE
+  .delete('/:id', async (c) => {
+    try {
+      const id = c.req.param('id');
+      await workspaceService.deleteWorkspace(id);
+      return c.json(
+        { message: 'Workspace deleted successfully' },
+        200,
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to delete workspace';
       return c.json({ error: message }, 404);
     }
   });
