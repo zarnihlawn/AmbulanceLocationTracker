@@ -2,6 +2,7 @@ import { fetchWithAuth } from '$lib/utils/api';
 import type {
 	CreateLocationTrackerDeviceWithSecretKeyPayload,
 	AcceptLocationTrackerDevicePayload,
+	UpdateLocationTrackerDevicePayload,
 	LocationTrackerDevice
 } from '$lib/types/location-tracker-device';
 
@@ -55,6 +56,24 @@ export async function acceptLocationTrackerDevice(
 
 	if (!response.ok) {
 		throw new Error(json?.error || json?.message || 'Failed to accept device');
+	}
+
+	return json as LocationTrackerDevice;
+}
+
+export async function updateLocationTrackerDevice(
+	deviceId: string,
+	data: UpdateLocationTrackerDevicePayload
+): Promise<LocationTrackerDevice> {
+	const response = await fetchWithAuth(`${LOCATION_TRACKER_DEVICE_ENDPOINT}/${deviceId}`, {
+		method: 'PATCH',
+		body: JSON.stringify(data)
+	});
+
+	const json = await response.json().catch(() => ({}));
+
+	if (!response.ok) {
+		throw new Error(json?.error || json?.message || 'Failed to update device');
 	}
 
 	return json as LocationTrackerDevice;

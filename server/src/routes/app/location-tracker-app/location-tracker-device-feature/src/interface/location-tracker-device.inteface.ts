@@ -1,6 +1,5 @@
 export interface CreateLocationTrackerDeviceDto {
   workspaceId: string;
-  organizationId: string;
   deviceKey: string;
   secretKey: string; // One-time password from website
   deviceOs: string;
@@ -10,13 +9,6 @@ export interface CreateLocationTrackerDeviceDto {
 }
 
 export interface UpdateLocationTrackerDeviceDto {
-  id: string;
-  workspaceId?: string;
-  deviceKey?: string;
-  deviceOs?: string;
-  deviceOsVersion?: string;
-  deviceModel?: string;
-  appVersion?: string;
   name?: string;
   description?: string;
 }

@@ -8,6 +8,7 @@
 		getLocationTrackerDevicesByWorkspaceId,
 		createLocationTrackerDeviceWithSecretKey,
 		acceptLocationTrackerDevice,
+		updateLocationTrackerDevice,
 		deleteLocationTrackerDevice
 	} from '$lib/utils/location-tracker-device';
 
@@ -31,6 +32,14 @@
 	let acceptDescription = $state('');
 	let accepting = $state(false);
 	let acceptError = $state<string | null>(null);
+
+	// Edit device dialog
+	let editDialog: HTMLDialogElement;
+	let editingDevice = $state<LocationTrackerDevice | null>(null);
+	let editName = $state('');
+	let editDescription = $state('');
+	let editing = $state(false);
+	let editError = $state<string | null>(null);
 
 	// Delete device dialog
 	let deleteDialog: HTMLDialogElement;
@@ -143,12 +152,12 @@
 
 	function showCopyFeedback(message: string, isError: boolean = false) {
 		copyFeedback = { message, isError };
-		
+
 		// Clear existing timeout
 		if (copyFeedbackTimeout) {
 			clearTimeout(copyFeedbackTimeout);
 		}
-		
+
 		// Hide feedback after 3 seconds
 		copyFeedbackTimeout = setTimeout(() => {
 			copyFeedback = null;
@@ -196,6 +205,44 @@
 			acceptError = error instanceof Error ? error.message : 'Failed to accept device';
 		} finally {
 			accepting = false;
+		}
+	}
+
+	function openEditDialog(device: LocationTrackerDevice) {
+		editingDevice = device;
+		editName = device.name || '';
+		editDescription = device.description || '';
+		editError = null;
+		editDialog?.showModal();
+	}
+
+	function closeEditDialog() {
+		editingDevice = null;
+		editName = '';
+		editDescription = '';
+		editError = null;
+		editDialog?.close();
+	}
+
+	async function handleUpdateDevice() {
+		if (!editingDevice) {
+			return;
+		}
+
+		editError = null;
+		editing = true;
+
+		try {
+			await updateLocationTrackerDevice(editingDevice.id, {
+				name: editName.trim() || undefined,
+				description: editDescription.trim() || undefined
+			});
+			await loadDevices(); // Reload devices list
+			closeEditDialog();
+		} catch (error) {
+			editError = error instanceof Error ? error.message : 'Failed to update device';
+		} finally {
+			editing = false;
 		}
 	}
 
@@ -287,22 +334,6 @@
 						<h3 class="font-bold">Device Created!</h3>
 						<div class="text-sm mt-2 space-y-2">
 							<div class="flex items-center justify-between gap-2">
-								<span class="font-medium">Organization ID:</span>
-								<div class="flex items-center gap-2">
-									<code class="text-xs bg-base-200 px-2 py-1 rounded">
-										{organization?.id || workspace?.organizationId}
-									</code>
-									<button
-										type="button"
-										class="d-btn d-btn-xs d-btn-ghost"
-										onclick={() => copyToClipboard(organization?.id || workspace?.organizationId || '')}
-										title="Copy to clipboard"
-									>
-										Copy
-									</button>
-								</div>
-							</div>
-							<div class="flex items-center justify-between gap-2">
 								<span class="font-medium">Workspace ID:</span>
 								<div class="flex items-center gap-2">
 									<code class="text-xs bg-base-200 px-2 py-1 rounded">
@@ -335,7 +366,7 @@
 								</div>
 							</div>
 							<p class="text-xs text-base-content/70 mt-3">
-								Use these credentials in your Android app. The app needs to provide: Organization ID, Workspace ID, Device Key (from the app), and this Secret Key. You can accept the device now or wait for the Android app to register first.
+								Use these credentials in your Android app. The app needs to provide: Workspace ID, Device Key (from the app), and this Secret Key. You can accept the device now or wait for the Android app to register first.
 							</p>
 							<div class="d-alert d-alert-warning mt-3">
 								<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
@@ -438,6 +469,17 @@
 											>
 												Accept Device
 											</button>
+										{:else}
+											<button
+												type="button"
+												class="d-btn d-btn-sm d-btn-ghost"
+												onclick={() => openEditDialog(device)}
+												title="Edit device"
+											>
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+												</svg>
+											</button>
 										{/if}
 										<button
 											type="button"
@@ -504,6 +546,60 @@
 					</div>
 					<form method="dialog" class="d-modal-backdrop">
 						<button onclick={closeAcceptDialog}>close</button>
+					</form>
+				</dialog>
+
+				<!-- Edit Device Dialog -->
+				<dialog bind:this={editDialog} class="d-modal d-modal-middle">
+					<div class="d-modal-box max-w-md space-y-4">
+						<h2 class="d-card-title">Edit Device</h2>
+						<div class="space-y-2">
+							<label for="edit-device-name" class="text-sm font-medium">Name</label>
+							<input
+								id="edit-device-name"
+								type="text"
+								class="d-input d-input-bordered w-full"
+								placeholder="Device name"
+								bind:value={editName}
+							/>
+						</div>
+						<div class="space-y-2">
+							<label for="edit-device-description" class="text-sm font-medium">Description</label>
+							<textarea
+								id="edit-device-description"
+								class="d-textarea d-textarea-bordered w-full"
+								rows="3"
+								placeholder="Device description (optional)"
+								bind:value={editDescription}
+							></textarea>
+						</div>
+						{#if editError}
+							<p class="text-sm text-error">{editError}</p>
+						{/if}
+						<div class="flex justify-end gap-2">
+							<button
+								type="button"
+								class="d-btn d-btn-ghost"
+								onclick={closeEditDialog}
+								disabled={editing}
+							>
+								Cancel
+							</button>
+							<button
+								type="button"
+								class="d-btn d-btn-primary"
+								onclick={handleUpdateDevice}
+								disabled={editing}
+							>
+								{#if editing}
+									<span class="d-loading d-loading-spinner d-loading-xs" aria-hidden="true"></span>
+								{/if}
+								Update
+							</button>
+						</div>
+					</div>
+					<form method="dialog" class="d-modal-backdrop">
+						<button onclick={closeEditDialog}>close</button>
 					</form>
 				</dialog>
 

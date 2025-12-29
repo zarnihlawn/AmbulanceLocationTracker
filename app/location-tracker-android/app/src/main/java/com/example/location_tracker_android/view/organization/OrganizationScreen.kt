@@ -35,7 +35,6 @@ fun OrganizationScreen(
     onLoginSuccess: (OrganizationData) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var organizationId by remember { mutableStateOf("") }
     var workspaceId by remember { mutableStateOf("") }
     var secretKey by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -80,28 +79,6 @@ fun OrganizationScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(32.dp))
-
-                // Organization ID Field
-                OutlinedTextField(
-                    value = organizationId,
-                    onValueChange = {
-                        organizationId = it
-                        errorMessage = null
-                    },
-                    label = { Text("Organization ID") },
-                    placeholder = { Text("Enter organization ID") },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.AccountCircle,
-                            contentDescription = null
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = AppShapes.field,
-                    singleLine = true,
-                    isError = errorMessage != null
-                )
-                Spacer(modifier = Modifier.height(16.dp))
 
                 // Workspace ID Field
                 OutlinedTextField(
@@ -231,14 +208,13 @@ fun OrganizationScreen(
                         isLoading = true
                         errorMessage = null
                         successMessage = null
-                        
+
                         // Validate input
                         val validation = locationTrackerDeviceController.validateRegistrationData(
-                            organizationId,
                             workspaceId,
                             secretKey
                         )
-                        
+
                         when (validation) {
                             is LocationTrackerDeviceController.ValidationResult.Error -> {
                                 errorMessage = validation.message
@@ -248,26 +224,25 @@ fun OrganizationScreen(
                                 // Register device with server
                                 coroutineScope.launch {
                                     val result = locationTrackerDeviceController.registerDevice(
-                                        organizationId.trim(),
                                         workspaceId.trim(),
                                         secretKey.trim()
                                     )
-                                    
+
                                     when (result) {
                                         is LocationTrackerDeviceController.RegistrationResult.Success -> {
                                             // Device registration successful
                                             if (result.device.isAccepted) {
                                                 // Device is accepted - proceed to home
                                                 successMessage = "Device registered and accepted! Proceeding..."
-                                                
+
                                                 // Create organization data for navigation with device data
                                                 val orgData = OrganizationData(
-                                                    organizationId = organizationId.trim(),
+                                                    organizationId = "", // Not needed for registration
                                                     workspaceId = workspaceId.trim(),
                                                     deviceId = result.device.deviceKey ?: organizationController.getDeviceId(),
                                                     deviceData = result.device
                                                 )
-                                                
+
                                                 // Wait a bit to show success message, then proceed
                                                 kotlinx.coroutines.delay(1500)
                                                 onLoginSuccess(orgData)
@@ -275,26 +250,26 @@ fun OrganizationScreen(
                                                 // Device is pending - check status periodically
                                                 successMessage = "Device registered successfully! Waiting for approval..."
                                                 isLoading = false
-                                                
+
                                                 // Poll for acceptance status
                                                 coroutineScope.launch {
                                                     var attempts = 0
                                                     val maxAttempts = 30 // 30 attempts = 30 seconds
-                                                    
+
                                                     while (attempts < maxAttempts) {
                                                         kotlinx.coroutines.delay(1000) // Wait 1 second
-                                                        
+
                                                         try {
                                                             val deviceKey = organizationController.getDeviceId()
                                                             val checkResult = locationTrackerDeviceController.checkDeviceStatus(deviceKey)
-                                                            
+
                                                             when (checkResult) {
                                                                 is LocationTrackerDeviceController.StatusResult.Found -> {
                                                                     if (checkResult.device.isAccepted) {
                                                                         // Device accepted - proceed
                                                                         successMessage = "Device accepted! Proceeding..."
                                                                         val orgData = OrganizationData(
-                                                                            organizationId = organizationId.trim(),
+                                                                            organizationId = "", // Not needed for registration
                                                                             workspaceId = workspaceId.trim(),
                                                                             deviceId = checkResult.device.deviceKey ?: deviceKey,
                                                                             deviceData = checkResult.device
@@ -315,10 +290,10 @@ fun OrganizationScreen(
                                                         } catch (e: Exception) {
                                                             // Continue polling on exception
                                                         }
-                                                        
+
                                                         attempts++
                                                     }
-                                                    
+
                                                     // Max attempts reached - show timeout message
                                                     errorMessage = "Registration timeout. Please check back later or try again."
                                                 }

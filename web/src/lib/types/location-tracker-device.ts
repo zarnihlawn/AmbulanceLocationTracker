@@ -24,3 +24,8 @@ export type AcceptLocationTrackerDevicePayload = {
 	description?: string;
 };
 
+export type UpdateLocationTrackerDevicePayload = {
+	name?: string;
+	description?: string;
+};
+

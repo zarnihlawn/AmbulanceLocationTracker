@@ -19,15 +19,12 @@ class LocationTrackerDeviceController(
      * Validate registration data
      */
     fun validateRegistrationData(
-        organizationId: String,
         workspaceId: String,
         secretKey: String
     ): ValidationResult {
         return when {
-            organizationId.isBlank() -> ValidationResult.Error("Organization ID is required")
             workspaceId.isBlank() -> ValidationResult.Error("Workspace ID is required")
             secretKey.isBlank() -> ValidationResult.Error("Secret Key is required")
-            organizationId.length < 3 -> ValidationResult.Error("Organization ID must be at least 3 characters")
             workspaceId.length < 3 -> ValidationResult.Error("Workspace ID must be at least 3 characters")
             secretKey.length < 8 -> ValidationResult.Error("Secret Key appears to be invalid")
             else -> ValidationResult.Success
@@ -39,7 +36,6 @@ class LocationTrackerDeviceController(
      * @return RegistrationResult with success status and device info
      */
     suspend fun registerDevice(
-        organizationId: String,
         workspaceId: String,
         secretKey: String
     ): RegistrationResult = withContext(Dispatchers.IO) {
@@ -53,7 +49,6 @@ class LocationTrackerDeviceController(
             // Create registration request
             val request = LocationTrackerDeviceRegisterRequest(
                 workspaceId = workspaceId.trim(),
-                organizationId = organizationId.trim(),
                 deviceKey = deviceKey,
                 secretKey = secretKey.trim(),
                 deviceOs = deviceInfo["os"] ?: "Android",

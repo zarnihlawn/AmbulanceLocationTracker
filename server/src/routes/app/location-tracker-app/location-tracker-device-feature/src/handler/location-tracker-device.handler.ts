@@ -3,6 +3,7 @@ import { db } from '../db';
 import type {
   CreateLocationTrackerDeviceDto,
   AcceptLocationTrackerDeviceDto,
+  UpdateLocationTrackerDeviceDto,
 } from '../interface/location-tracker-device.inteface';
 import { LocationTrackerDeviceRepository } from '../repo/location-tracker-device.repo';
 import { LocationTrackerDeviceService } from '../service/location-tracker-device.service';
@@ -71,6 +72,24 @@ export const locationTrackerDeviceRoutes = new Hono()
           ? error.message
           : 'Failed to accept device';
       return c.json({ error: message }, 500);
+    }
+  })
+  // UPDATE device
+  .patch('/:id', async (c) => {
+    try {
+      const id = c.req.param('id');
+      const body = await c.req.json<UpdateLocationTrackerDeviceDto>();
+      const locationTrackerDevice = await locationTrackerDeviceService.updateLocationTrackerDevice(id, body);
+      return c.json(locationTrackerDevice);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to update device';
+      const statusCode = message.includes('not found')
+        ? 404
+        : 400;
+      return c.json({ error: message }, statusCode);
     }
   })
   .get('/', async (c) => {

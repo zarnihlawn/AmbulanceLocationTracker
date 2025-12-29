@@ -37,7 +37,6 @@ export class LocationTrackerDeviceService {
   ) {
     if (
       !data.workspaceId ||
-      !data.organizationId ||
       !data.deviceKey ||
       !data.secretKey ||
       !data.deviceOs ||
@@ -46,7 +45,7 @@ export class LocationTrackerDeviceService {
       !data.appVersion
     ) {
       throw new Error(
-        "Workspace Id, Organization Id, Device Key, Secret Key, Device OS, Device OS Version, Device Model, App Version can't be empty",
+        "Workspace Id, Device Key, Secret Key, Device OS, Device OS Version, Device Model, App Version can't be empty",
       );
     }
 

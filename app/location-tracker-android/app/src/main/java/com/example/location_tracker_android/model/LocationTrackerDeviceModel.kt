@@ -9,7 +9,6 @@ package com.example.location_tracker_android.model
  */
 data class LocationTrackerDeviceRegisterRequest(
     val workspaceId: String,
-    val organizationId: String,
     val deviceKey: String,
     val secretKey: String,
     val deviceOs: String,
