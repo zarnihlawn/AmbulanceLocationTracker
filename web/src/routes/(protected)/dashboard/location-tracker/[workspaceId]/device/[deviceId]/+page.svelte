@@ -17,7 +17,7 @@
 	const { data } = $props();
 	const deviceId = $derived(data.deviceId as string);
 	const workspaceId = $derived(data.workspaceId as string);
-	
+
 	// Load data client-side
 	let device = $state<LocationTrackerDevice | null>(null);
 	let workspace = $state<Workspace | null>(null);
@@ -30,7 +30,9 @@
 	let marker: google.maps.marker.AdvancedMarkerElement | null = null;
 	let mapContainer: HTMLDivElement;
 	let pollingInterval: ReturnType<typeof setInterval> | null = null;
+	let taskPollingInterval: ReturnType<typeof setInterval> | null = null;
 	const POLLING_INTERVAL_MS = 5000; // Poll every 5 seconds
+	const TASK_POLLING_INTERVAL_MS = 10000; // Poll tasks every 10 seconds
 
 	// Task management
 	let tasks = $state<LocationTrackerTask[]>([]);
@@ -45,7 +47,7 @@
 
 	// Google Maps API Key (use VITE_GOOGLE_MAPS_API_KEY environment variable)
 	const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
-	
+
 	// Declare google types
 	declare global {
 		interface Window {
@@ -139,6 +141,9 @@
 		// Load tasks
 		await loadTasks();
 
+		// Start polling for task updates
+		startTaskPolling();
+
 		loading = false;
 	});
 
@@ -146,6 +151,10 @@
 		if (pollingInterval) {
 			clearInterval(pollingInterval);
 			pollingInterval = null;
+		}
+		if (taskPollingInterval) {
+			clearInterval(taskPollingInterval);
+			taskPollingInterval = null;
 		}
 		// Clean up marker when component is destroyed
 		if (marker) {
@@ -180,12 +189,12 @@
 			script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,marker&loading=async`;
 			script.async = true;
 			script.defer = true;
-			
+
 			script.onload = () => {
 				// Wait for Google Maps to be fully initialized
 				const checkReady = () => {
 					const google = (window as any).google;
-					if (google && google.maps && typeof google.maps.Map === 'function' && 
+					if (google && google.maps && typeof google.maps.Map === 'function' &&
 						google.maps.marker && typeof google.maps.marker.AdvancedMarkerElement === 'function') {
 						resolve();
 					} else {
@@ -194,12 +203,12 @@
 				};
 				checkReady();
 			};
-			
+
 			script.onerror = (error) => {
 				console.error('[Frontend] Failed to load Google Maps script:', error);
 				reject(new Error('Failed to load Google Maps'));
 			};
-			
+
 			document.head.appendChild(script);
 		});
 	}
@@ -211,7 +220,7 @@
 		}
 
 		const google = (window as any).google;
-		
+
 		// Check if Google Maps is fully loaded
 		if (!google || !google.maps || typeof google.maps.Map !== 'function') {
 			setTimeout(() => initMap(), 200);
@@ -283,7 +292,7 @@
 		if (!map || typeof window === 'undefined' || !(window as any).google) {
 			return;
 		}
-		
+
 		const google = (window as any).google;
 		const position = { lat, lng };
 
@@ -328,13 +337,13 @@
 
 			if (response.ok) {
 				const location = await response.json();
-				
+
 				// Only update if location has changed
-				const hasChanged = !currentLocation || 
-					currentLocation.latitude !== location.latitude || 
+				const hasChanged = !currentLocation ||
+					currentLocation.latitude !== location.latitude ||
 					currentLocation.longitude !== location.longitude ||
 					currentLocation.timestamp !== location.createdAt;
-				
+
 				if (hasChanged) {
 					const previousLocation = currentLocation;
 					currentLocation = {
@@ -342,11 +351,11 @@
 						longitude: location.longitude,
 						timestamp: location.createdAt,
 					};
-					
+
 					if (map) {
 						// Always update marker and smoothly animate camera to new location
 						updateMarker(location.latitude, location.longitude, true);
-						
+
 						// If this is a significant move, also adjust zoom slightly for better visibility
 						if (previousLocation) {
 							const distance = calculateDistance(
@@ -355,7 +364,7 @@
 								location.latitude,
 								location.longitude
 							);
-							
+
 							// If moved more than 100 meters, ensure good zoom level
 							if (distance > 100) {
 								const currentZoom = map.getZoom() || 15;
@@ -390,6 +399,22 @@
 		}, POLLING_INTERVAL_MS);
 	}
 
+	function startTaskPolling() {
+		if (!device?.id) {
+			return;
+		}
+
+		// Clear any existing interval
+		if (taskPollingInterval) {
+			clearInterval(taskPollingInterval);
+		}
+
+		// Poll for task updates
+		taskPollingInterval = setInterval(async () => {
+			await loadTasks();
+		}, TASK_POLLING_INTERVAL_MS);
+	}
+
 	/**
 	 * Calculate distance between two coordinates in meters using Haversine formula
 	 */
@@ -410,7 +435,7 @@
 
 	async function loadTasks() {
 		if (!device?.id) return;
-		
+
 		loadingTasks = true;
 		try {
 			tasks = await getLocationTrackerTasksByDeviceId(device.id);
@@ -427,13 +452,13 @@
 		taskDescription = '';
 		taskTargetLat = '';
 		taskTargetLng = '';
-		
+
 		// If location type and we have current location, pre-fill
 		if (type === 'location' && currentLocation) {
 			taskTargetLat = currentLocation.latitude.toString();
 			taskTargetLng = currentLocation.longitude.toString();
 		}
-		
+
 		showTaskModal = true;
 	}
 
@@ -552,7 +577,7 @@
 					<span>{error}</span>
 				</div>
 			{/if}
-			
+
 			<!-- Tasks Section -->
 			<div class="d-card bg-base-100 shadow-md">
 				<div class="d-card-body">
@@ -607,7 +632,7 @@
 												</div>
 											{/if}
 											<div class="text-xs text-base-content/50">
-												Created: {formatDate(task.createdAt)} | 
+												Created: {formatDate(task.createdAt)} |
 												{#if task.respondedAt}
 													Responded: {formatDate(task.respondedAt)}
 												{/if}
@@ -718,7 +743,7 @@
 				<h3 class="d-card-title mb-4">
 					Create {taskType === 'location' ? 'Location' : 'Text'} Task
 				</h3>
-				
+
 				<div class="space-y-4">
 					<div>
 						<label for="task-title" class="d-label">

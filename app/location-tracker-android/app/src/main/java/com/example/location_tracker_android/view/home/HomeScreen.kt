@@ -45,7 +45,7 @@ fun HomeScreen(
         ) {
             when (selectedTab) {
                 BottomNavItem.MAP -> MapScreen(organizationData = organizationData)
-                BottomNavItem.NOTIFIER -> NotifierScreen()
+                BottomNavItem.NOTIFIER -> NotifierScreen(organizationData = organizationData)
                 BottomNavItem.HISTORY -> HistoryScreen()
                 BottomNavItem.PROFILE -> ProfileScreen(
                     organizationData = organizationData,

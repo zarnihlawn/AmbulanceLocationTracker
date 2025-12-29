@@ -22,6 +22,7 @@ import com.example.location_tracker_android.view.home.HomeScreen
 import com.example.location_tracker_android.view.organization.OrganizationScreen
 import com.example.location_tracker_android.view.splash.SplashScreen
 import com.example.location_tracker_android.service.LocationTrackingService
+import com.example.location_tracker_android.service.NotificationService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
@@ -52,6 +53,9 @@ class MainActivity : ComponentActivity() {
         // Configure API environment (HOME or OFFICE)
         // Change this to ApiConfig.Environment.OFFICE when at office
         ApiConfig.setEnvironment(ApiConfig.Environment.OFFICE) // Uncomment for office
+
+        // Initialize notification channel early
+        NotificationService.createNotificationChannel(this)
 
         // Initialize controllers
         deviceIdController = DeviceIdController(this)
@@ -109,11 +113,11 @@ class MainActivity : ComponentActivity() {
                                             deviceData = checkResult.device
                                         )
                                         organizationData = orgData
-                                        
+
                                         // Start location tracking service
                                         val deviceIdForTracking = checkResult.device.id ?: (checkResult.device.deviceKey ?: deviceKey)
                                         LocationTrackingService.startService(this@MainActivity, deviceIdForTracking)
-                                        
+
                                         showOrganization = false
                                         showHome = true
                                         return@launch
@@ -141,13 +145,13 @@ class MainActivity : ComponentActivity() {
                     locationTrackerDeviceController = locationTrackerDeviceController,
                     onLoginSuccess = { data ->
                         organizationData = data
-                        
+
                         // Start location tracking service when device is accepted
                         val deviceIdForTracking = data.deviceData?.id ?: data.deviceId
                         if (deviceIdForTracking.isNotBlank()) {
                             LocationTrackingService.startService(this@MainActivity, deviceIdForTracking)
                         }
-                        
+
                         showOrganization = false
                         showHome = true
                     }

@@ -37,11 +37,11 @@ export const locationTrackerTaskRoutes = new Hono()
         // Use gateway route to notifier service
         const gatewayBaseUrl = process.env.GATEWAY_BASE_URL || 'http://localhost:1025';
         const notifierWebhookUrl = `${gatewayBaseUrl}/api/location-tracker-notifier/webhook/web-to-android`;
-        
+
         // Get device webhook URL (FCM token or device endpoint)
         // For now, we'll use a placeholder - this should be configured per device
         // In production, this would come from device registration (FCM token)
-        const deviceWebhookUrl = process.env.ANDROID_WEBHOOK_BASE_URL || 
+        const deviceWebhookUrl = process.env.ANDROID_WEBHOOK_BASE_URL ||
           `http://localhost:8080/api/task/notification`; // Android app endpoint
 
         await fetch(notifierWebhookUrl, {
@@ -142,6 +142,47 @@ export const locationTrackerTaskRoutes = new Hono()
       const task = await taskService.updateTaskStatus(id, body);
       if (!task) {
         return c.json({ error: 'Task not found' }, 404);
+      }
+
+      // Send notification to web via notifier service (Android -> Web)
+      try {
+        const gatewayBaseUrl = process.env.GATEWAY_BASE_URL || 'http://localhost:1025';
+        const notifierWebhookUrl = `${gatewayBaseUrl}/api/location-tracker-notifier/webhook/android-to-web`;
+
+        // Web webhook URL - in production this could be a server endpoint that triggers refresh
+        // For now, we'll send the notification even though the web client polls
+        // This sets up the infrastructure for future real-time updates
+        const webWebhookUrl = process.env.WEB_WEBHOOK_BASE_URL ||
+          `${process.env.WEB_BASE_URL || 'http://localhost:5173'}/api/webhook/task-updated`;
+
+        await fetch(notifierWebhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': c.req.header('Authorization') || '',
+          },
+          body: JSON.stringify({
+            deviceId: task.deviceId,
+            direction: 'android_to_web',
+            title: `Task ${body.status}: ${task.title}`,
+            message: `Task "${task.title}" was ${body.status}${body.responseMessage ? `: ${body.responseMessage}` : ''}`,
+            payload: {
+              taskId: task.id,
+              deviceId: task.deviceId,
+              status: task.status,
+              previousStatus: 'pending',
+              responseMessage: task.responseMessage,
+              updatedAt: task.updatedAt,
+            },
+            webhookUrl: webWebhookUrl,
+          }),
+        }).catch((err) => {
+          console.error('[Task Handler] Failed to send webhook notification to web:', err);
+          // Don't fail the task update if notification fails
+        });
+      } catch (err) {
+        console.error('[Task Handler] Error sending webhook notification:', err);
+        // Continue even if notification fails
       }
 
       return c.json(task);

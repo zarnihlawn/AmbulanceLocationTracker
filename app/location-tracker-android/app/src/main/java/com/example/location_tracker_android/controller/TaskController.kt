@@ -22,10 +22,15 @@ object TaskController {
                 if (response.isSuccessful && response.body() != null) {
                     Result.success(response.body()!!)
                 } else {
-                    Result.failure(Exception("Failed to fetch tasks: ${response.message()}"))
+                    val errorMessage = try {
+                        response.errorBody()?.string() ?: response.message()
+                    } catch (e: Exception) {
+                        response.message()
+                    }
+                    Result.failure(Exception("Failed to fetch tasks: $errorMessage (HTTP ${response.code()})"))
                 }
             } catch (e: Exception) {
-                Result.failure(e)
+                Result.failure(Exception("Network error: ${e.message}", e))
             }
         }
     }
