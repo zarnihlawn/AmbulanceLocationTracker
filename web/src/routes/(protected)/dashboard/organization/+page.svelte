@@ -30,6 +30,7 @@
 	let deleteDialog: HTMLDialogElement;
 	let deleting = $state(false);
 	let deletingOrg = $state<Organization | null>(null);
+	let deleteConfirmationName = $state('');
 	let deleteError = $state<string | null>(null);
 
 	onMount(async () => {
@@ -137,14 +138,16 @@
 	function openDelete(org: Organization, event: MouseEvent) {
 		event.stopPropagation();
 		deletingOrg = org;
+		deleteConfirmationName = '';
 		deleteError = null;
-		deleting = true;
+		deleting = false;
 		deleteDialog?.showModal();
 	}
 
 	function closeDelete() {
 		deleting = false;
 		deletingOrg = null;
+		deleteConfirmationName = '';
 		deleteError = null;
 		deleteDialog?.close();
 	}
@@ -152,13 +155,21 @@
 	async function handleDeleteOrganization() {
 		if (!deletingOrg) return;
 
+		if (deleteConfirmationName !== deletingOrg.name) {
+			deleteError = 'Name does not match. Please type the organization name to confirm.';
+			return;
+		}
+
 		deleteError = null;
+		deleting = true;
 		try {
 			await deleteOrganization(deletingOrg.id);
 			organizations = organizations.filter(org => org.id !== deletingOrg!.id);
 			closeDelete();
 		} catch (error) {
 			deleteError = error instanceof Error ? error.message : 'Failed to delete organization';
+		} finally {
+			deleting = false;
 		}
 	}
 </script>
@@ -288,6 +299,21 @@
 						<p class="text-sm text-base-content/70">
 							Are you sure you want to delete <strong>{deletingOrg.name}</strong>? This action cannot be undone.
 						</p>
+						<p class="text-sm text-base-content/60 mt-2">
+							Type <strong>{deletingOrg.name}</strong> to confirm:
+						</p>
+						<input
+							type="text"
+							class="d-input d-input-bordered w-full"
+							placeholder="Type organization name to confirm"
+							bind:value={deleteConfirmationName}
+							disabled={deleting}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' && deleteConfirmationName === deletingOrg?.name && !deleting) {
+									handleDeleteOrganization();
+								}
+							}}
+						/>
 					{/if}
 					{#if deleteError}
 						<p class="text-sm text-error">{deleteError}</p>
@@ -297,6 +323,7 @@
 							type="button"
 							class="d-btn d-btn-ghost"
 							onclick={closeDelete}
+							disabled={deleting}
 						>
 							Cancel
 						</button>
@@ -304,14 +331,14 @@
 							type="button"
 							class="d-btn d-btn-error"
 							onclick={handleDeleteOrganization}
-							disabled={deleting}
+							disabled={deleting || deleteConfirmationName !== deletingOrg?.name}
 						>
 							{deleting ? 'Deleting...' : 'Delete'}
 						</button>
 					</div>
 				</div>
 				<form method="dialog" class="d-modal-backdrop">
-					<button onclick={closeDelete}>close</button>
+					<button onclick={closeDelete} disabled={deleting}>close</button>
 				</form>
 			</dialog>
 

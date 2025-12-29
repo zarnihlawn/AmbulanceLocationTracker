@@ -41,6 +41,7 @@
 	let deleteDialog: HTMLDialogElement;
 	let deleting = $state(false);
 	let deletingWorkspace = $state<Workspace | null>(null);
+	let deleteConfirmationName = $state('');
 	let deleteError = $state<string | null>(null);
 
 	onMount(async () => {
@@ -221,14 +222,16 @@
 	function openDelete(workspace: Workspace, event: MouseEvent) {
 		event.stopPropagation();
 		deletingWorkspace = workspace;
+		deleteConfirmationName = '';
 		deleteError = null;
-		deleting = true;
+		deleting = false;
 		deleteDialog?.showModal();
 	}
 
 	function closeDelete() {
 		deleting = false;
 		deletingWorkspace = null;
+		deleteConfirmationName = '';
 		deleteError = null;
 		deleteDialog?.close();
 	}
@@ -236,7 +239,13 @@
 	async function handleDeleteWorkspace() {
 		if (!deletingWorkspace) return;
 
+		if (deleteConfirmationName !== deletingWorkspace.name) {
+			deleteError = 'Name does not match. Please type the workspace name to confirm.';
+			return;
+		}
+
 		deleteError = null;
+		deleting = true;
 		try {
 			await deleteWorkspace(deletingWorkspace.id);
 			workspaces = workspaces.filter(ws => ws.id !== deletingWorkspace!.id);
@@ -244,6 +253,8 @@
 			closeDelete();
 		} catch (error) {
 			deleteError = error instanceof Error ? error.message : 'Failed to delete workspace';
+		} finally {
+			deleting = false;
 		}
 	}
 </script>
@@ -425,6 +436,21 @@
 						<p class="text-sm text-base-content/70">
 							Are you sure you want to delete <strong>{deletingWorkspace.name}</strong>? This action cannot be undone.
 						</p>
+						<p class="text-sm text-base-content/60 mt-2">
+							Type <strong>{deletingWorkspace.name}</strong> to confirm:
+						</p>
+						<input
+							type="text"
+							class="d-input d-input-bordered w-full"
+							placeholder="Type workspace name to confirm"
+							bind:value={deleteConfirmationName}
+							disabled={deleting}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' && deleteConfirmationName === deletingWorkspace?.name && !deleting) {
+									handleDeleteWorkspace();
+								}
+							}}
+						/>
 					{/if}
 					{#if deleteError}
 						<p class="text-sm text-error">{deleteError}</p>
@@ -434,6 +460,7 @@
 							type="button"
 							class="d-btn d-btn-ghost"
 							onclick={closeDelete}
+							disabled={deleting}
 						>
 							Cancel
 						</button>
@@ -441,14 +468,14 @@
 							type="button"
 							class="d-btn d-btn-error"
 							onclick={handleDeleteWorkspace}
-							disabled={deleting}
+							disabled={deleting || deleteConfirmationName !== deletingWorkspace?.name}
 						>
 							{deleting ? 'Deleting...' : 'Delete'}
 						</button>
 					</div>
 				</div>
 				<form method="dialog" class="d-modal-backdrop">
-					<button onclick={closeDelete}>close</button>
+					<button onclick={closeDelete} disabled={deleting}>close</button>
 				</form>
 			</dialog>
 
