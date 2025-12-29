@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Allow HTTP connections to localhost, emulator host, home and office IPs -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <!-- Android Emulator -->
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <!-- Home Network -->
+        <domain includeSubdomains="true">192.168.100.16</domain>
+        <!-- Office Network -->
+        <domain includeSubdomains="true">10.0.251.86</domain>
+    </domain-config>
+</network-security-config>
+

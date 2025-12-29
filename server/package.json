@@ -1,0 +1,43 @@
+{
+  "name": "server",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "workspaces": [
+    "src/routes/service/*",
+    "src/routes/app/*/*",
+    "src/lib/cmd/wizard/*/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter './src/routes/service/*' --filter './src/routes/app/*/*' dev",
+    "dev:services": "bun run --filter './src/routes/service/*' dev",
+    "dev:apps": "bun run --filter './src/routes/app/*/*' dev",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
+    "migrate:dev": "drizzle-kit migrate dev --schema src/db/schema.ts --out src/db/migrations",
+    "migrate:push": "drizzle-kit migrate push --schema src/db/schema.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/pg": "^8.16.0",
+    "@typescript-eslint/eslint-plugin": "^8.50.0",
+    "@typescript-eslint/parser": "^8.50.0",
+    "drizzle-kit": "^0.31.8",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.7.4"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "drizzle-orm": "^0.45.1",
+    "hono": "^4.11.1",
+    "path": "^0.12.7",
+    "pg": "^8.16.3",
+    "zod": "^4.2.1"
+  }
+}

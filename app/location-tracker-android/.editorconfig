@@ -1,0 +1,32 @@
+# Top-level EditorConfig file
+root = true
+
+# Apply to all files
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Indentation settings
+indent_style = tab
+indent_size = 2
+tab_width = 2
+
+# Wrapping and formatting
+max_line_length = 70
+
+# Consistent spacing and formatting
+ij_continuation_indent_size = 2
+ij_formatter_off_tag = @formatter:off
+ij_formatter_on_tag = @formatter:on
+
+# Handle common file patterns that need exceptions
+[*.md]
+trim_trailing_whitespace = false
+
+# Optional: make JSON and YAML always compact
+[*.{json,yml,yaml}]
+indent_style = space
+indent_size = 2
+max_line_length = 120

@@ -1,0 +1,6 @@
+{
+  "name": "location-tracker-tracking-feature",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts"
+  }
+}

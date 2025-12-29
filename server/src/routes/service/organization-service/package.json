@@ -1,0 +1,7 @@
+{
+  "name": "organization-service",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts"
+  }
+}

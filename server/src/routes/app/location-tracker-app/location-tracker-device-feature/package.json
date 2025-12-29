@@ -1,0 +1,7 @@
+{
+  "name": "location-tracker-device-feature",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts"
+  }
+}
