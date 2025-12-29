@@ -76,14 +76,18 @@ export async function deleteLocationTrackerDevice(
 export async function getLocationTrackerDeviceById(
 	id: string,
 	fetchFn: typeof fetch = fetch
-): Promise<LocationTrackerDevice> {
+): Promise<LocationTrackerDevice | null> {
 	const response = await fetchWithAuth(`${LOCATION_TRACKER_DEVICE_ENDPOINT}/${id}`, {
 		method: 'GET'
 	}, fetchFn);
 
 	if (!response.ok) {
+		if (response.status === 404) {
+			return null; // Device not found - return null instead of throwing
+		}
 		const err = await response.json().catch(() => ({}));
-		throw new Error(err?.error || err?.message || 'Failed to load device');
+		const errorMessage = err?.error || err?.message || 'Failed to load device';
+		throw new Error(`Location Tracker Device with id ${id} not found: ${errorMessage}`);
 	}
 
 	return response.json();

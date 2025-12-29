@@ -12,11 +12,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.location_tracker_android.controller.LocationController
-import com.example.location_tracker_android.controller.LocationTrackingController
+import com.example.location_tracker_android.controller.ApiClient
 import com.example.location_tracker_android.model.OrganizationData
 import com.example.location_tracker_android.ui.theme.LocationtrackerandroidTheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
@@ -35,7 +36,6 @@ fun MapScreen(
 ) {
     val context = LocalContext.current
     val locationController = remember { LocationController(context) }
-    val locationTrackingController = remember { LocationTrackingController() }
     val coroutineScope = rememberCoroutineScope()
     
     // Request location permissions
@@ -48,40 +48,53 @@ fun MapScreen(
 
     // Default location (Yangon, Myanmar)
     var currentLocation by remember { mutableStateOf(LatLng(16.8661, 96.1951)) }
-    val currentLocationState = locationController.currentLocation.collectAsState()
-
-    // Update location when available (for UI display)
-    LaunchedEffect(currentLocationState.value) {
-        currentLocationState.value?.let { location ->
-            currentLocation = LatLng(location.latitude, location.longitude)
-        }
+    var cameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(currentLocation, 15f)
     }
     
-    // Send location update to server every 10 seconds
-    LaunchedEffect(organizationData?.deviceData?.id, locationPermissionsState.allPermissionsGranted) {
+    val currentLocationState = locationController.currentLocation.collectAsState()
+
+    // Get latest location from server when map screen is opened
+    LaunchedEffect(organizationData?.deviceData?.id) {
         val deviceId = organizationData?.deviceData?.id
-        if (deviceId != null && locationPermissionsState.allPermissionsGranted) {
-            while (true) {
-                kotlinx.coroutines.delay(10_000L) // Wait 10 seconds
-                
-                currentLocationState.value?.let { location ->
-                    coroutineScope.launch {
-                        val result = locationTrackingController.sendLocationUpdate(deviceId, location)
-                        when (result) {
-                            is LocationTrackingController.TrackingResult.Success -> {
-                                android.util.Log.d("MapScreen", "Location sent successfully: ${location.latitude}, ${location.longitude}")
-                            }
-                            is LocationTrackingController.TrackingResult.Error -> {
-                                android.util.Log.e("MapScreen", "Failed to send location: ${result.message}")
-                            }
-                        }
+        if (deviceId != null) {
+            coroutineScope.launch {
+                try {
+                    // Fetch latest location from server
+                    val apiService = ApiClient.apiService
+                    val response = apiService.getLatestLocation(deviceId)
+                    if (response.isSuccessful && response.body() != null) {
+                        val locationData = response.body()!!
+                        val latLng = LatLng(locationData.latitude, locationData.longitude)
+                        currentLocation = latLng
+                        cameraPositionState.animate(
+                            CameraUpdateFactory.newCameraPosition(
+                                CameraPosition.fromLatLngZoom(latLng, 15f)
+                            )
+                        )
                     }
+                } catch (e: Exception) {
+                    android.util.Log.e("MapScreen", "Failed to get latest location: ${e.message}")
                 }
             }
         }
     }
 
-    // Start location updates when permissions granted
+    // Update location when available (for UI display)
+    LaunchedEffect(currentLocationState.value) {
+        currentLocationState.value?.let { location ->
+            val latLng = LatLng(location.latitude, location.longitude)
+            currentLocation = latLng
+            // Update camera to show current location (preserve zoom level)
+            cameraPositionState.animate(
+                CameraUpdateFactory.newCameraPosition(
+                    CameraPosition.fromLatLngZoom(latLng, cameraPositionState.position.zoom)
+                )
+            )
+        }
+    }
+
+    // Start location updates when permissions granted (for map display only)
     LaunchedEffect(locationPermissionsState.allPermissionsGranted) {
         if (locationPermissionsState.allPermissionsGranted) {
             locationController.startLocationUpdates()
@@ -139,9 +152,7 @@ fun MapScreen(
                 // Google Maps
                 GoogleMap(
                     modifier = Modifier.fillMaxSize(),
-                    cameraPositionState = rememberCameraPositionState {
-                        position = CameraPosition.fromLatLngZoom(currentLocation, 15f)
-                    },
+                    cameraPositionState = cameraPositionState,
                     properties = MapProperties(
                         isMyLocationEnabled = true,
                         mapType = MapType.NORMAL
@@ -152,7 +163,14 @@ fun MapScreen(
                         compassEnabled = true
                     ),
                     onMapLoaded = {
-                        // Map loaded
+                        // Map loaded - ensure camera is at correct location
+                        coroutineScope.launch {
+                            cameraPositionState.animate(
+                                CameraUpdateFactory.newCameraPosition(
+                                    CameraPosition.fromLatLngZoom(currentLocation, 15f)
+                                )
+                            )
+                        }
                     }
                 ) {
                     // Add marker for current location

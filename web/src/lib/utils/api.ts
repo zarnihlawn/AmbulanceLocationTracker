@@ -1,7 +1,7 @@
 import { browser } from '$app/environment';
 import { getAccessToken, getRefreshToken, setTokens, removeTokens, removeUser, setUser } from './auth';
 import type { RegisterData, User } from '$lib/types/auth';
-import { API_ENDPOINTS } from '$lib/config/api';
+import { API_ENDPOINTS, API_BASE_URL } from '$lib/config/api';
 import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
 
@@ -78,32 +78,52 @@ export async function fetchWithAuth(
 	options: RequestInit = {},
 	fetchFn: typeof fetch = fetch
 ): Promise<Response> {
+	// Construct full URL for SSR
+	let fullUrl = url;
 	if (!browser) {
-		return fetchFn(url, options);
+		// In SSR, if URL is relative, prepend API_BASE_URL
+		if (url.startsWith('/')) {
+			fullUrl = `${API_BASE_URL}${url}`;
+		} else if (!url.startsWith('http://') && !url.startsWith('https://')) {
+			fullUrl = `${API_BASE_URL}/${url}`;
+		}
 	}
 
-	let accessToken = getAccessToken();
+	// In browser, we can use localStorage for tokens
+	// In SSR, we need to get tokens from cookies or headers
+	let accessToken: string | null = null;
+	if (browser) {
+		accessToken = getAccessToken();
+	} else {
+		// In SSR, try to get token from cookies via the request
+		// For now, we'll skip auth in SSR - the gateway will handle it
+		// Or you can pass tokens via headers in the fetch function
+	}
 
 	// Add Authorization header if token exists
 	const headers = new Headers(options.headers);
 	if (accessToken) {
 		headers.set('Authorization', `Bearer ${accessToken}`);
 	}
-	headers.set('Content-Type', 'application/json');
+	
+	// Only set Content-Type if there's a body
+	if (options.body) {
+		headers.set('Content-Type', 'application/json');
+	}
 
-	const response = await fetchFn(url, {
+	const response = await fetchFn(fullUrl, {
 		...options,
 		headers
 	});
 
-	// If token expired (401), try to refresh
-	if (response.status === 401 && accessToken) {
+	// If token expired (401), try to refresh (only in browser)
+	if (response.status === 401 && accessToken && browser) {
 		const newToken = await refreshAccessToken();
 
 		if (newToken) {
 			// Retry the original request with new token
 			headers.set('Authorization', `Bearer ${newToken}`);
-			return fetchFn(url, {
+			return fetchFn(fullUrl, {
 				...options,
 				headers
 			});

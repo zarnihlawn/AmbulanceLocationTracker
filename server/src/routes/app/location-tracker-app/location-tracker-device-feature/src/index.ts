@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { gatewayAuthMiddleware } from './middleware/gateway-auth.middleware';
 import { locationTrackerDeviceRoutes } from './handler/location-tracker-device.handler';
+import { locationTrackerTaskRoutes } from './handler/location-tracker-task.handler';
 import { appEnv } from './config/app.config';
 
 const app = new Hono();
@@ -17,6 +18,7 @@ app.get('/health', (c) => {
 });
 
 app.route('/', locationTrackerDeviceRoutes);
+app.route('/task', locationTrackerTaskRoutes);
 
 const port = appEnv.LOCATION_TRACKER_DEVICE_PORT;
 const hostname =

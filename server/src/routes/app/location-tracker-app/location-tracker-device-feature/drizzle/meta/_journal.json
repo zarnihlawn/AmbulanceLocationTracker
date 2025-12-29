@@ -8,6 +8,13 @@
       "when": 1766942697527,
       "tag": "0000_living_ma_gnuci",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1766980898516,
+      "tag": "0001_tan_tyger_tiger",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import type { Workspace } from '$lib/types/workspace';
 	import type { Organization } from '$lib/types/organization';
@@ -40,6 +40,12 @@
 
 	onMount(async () => {
 		await loadDevices();
+	});
+
+	onDestroy(() => {
+		if (copyFeedbackTimeout) {
+			clearTimeout(copyFeedbackTimeout);
+		}
 	});
 
 	async function loadDevices() {
@@ -90,10 +96,63 @@
 		}
 	}
 
-	function copyToClipboard(text: string) {
-		navigator.clipboard.writeText(text).then(() => {
-			// Could show a toast notification here
-		});
+	async function copyToClipboard(text: string) {
+		if (!text) {
+			return;
+		}
+
+		try {
+			// Try modern clipboard API first
+			if (navigator.clipboard && navigator.clipboard.writeText) {
+				await navigator.clipboard.writeText(text);
+				showCopyFeedback('Copied to clipboard!');
+				return;
+			}
+
+			// Fallback for older browsers
+			const textArea = document.createElement('textarea');
+			textArea.value = text;
+			textArea.style.position = 'fixed';
+			textArea.style.left = '-999999px';
+			textArea.style.top = '-999999px';
+			document.body.appendChild(textArea);
+			textArea.focus();
+			textArea.select();
+
+			try {
+				const successful = document.execCommand('copy');
+				if (successful) {
+					showCopyFeedback('Copied to clipboard!');
+				} else {
+					showCopyFeedback('Failed to copy. Please copy manually.', true);
+				}
+			} catch (err) {
+				console.error('Fallback copy failed:', err);
+				showCopyFeedback('Failed to copy. Please copy manually.', true);
+			} finally {
+				document.body.removeChild(textArea);
+			}
+		} catch (err) {
+			console.error('Copy to clipboard failed:', err);
+			showCopyFeedback('Failed to copy. Please copy manually.', true);
+		}
+	}
+
+	let copyFeedback = $state<{ message: string; isError: boolean } | null>(null);
+	let copyFeedbackTimeout: ReturnType<typeof setTimeout> | null = null;
+
+	function showCopyFeedback(message: string, isError: boolean = false) {
+		copyFeedback = { message, isError };
+		
+		// Clear existing timeout
+		if (copyFeedbackTimeout) {
+			clearTimeout(copyFeedbackTimeout);
+		}
+		
+		// Hide feedback after 3 seconds
+		copyFeedbackTimeout = setTimeout(() => {
+			copyFeedback = null;
+		}, 3000);
 	}
 
 	function openAcceptDialog(device: LocationTrackerDevice) {
@@ -216,6 +275,12 @@
 				</div>
 			{/if}
 
+			{#if copyFeedback}
+				<div class="d-alert {copyFeedback.isError ? 'd-alert-error' : 'd-alert-success'} d-alert-sm">
+					<span>{copyFeedback.message}</span>
+				</div>
+			{/if}
+
 			{#if createdDevice}
 				<div class="d-alert d-alert-success">
 					<div class="flex-1">
@@ -231,6 +296,7 @@
 										type="button"
 										class="d-btn d-btn-xs d-btn-ghost"
 										onclick={() => copyToClipboard(organization?.id || workspace?.organizationId || '')}
+										title="Copy to clipboard"
 									>
 										Copy
 									</button>
@@ -246,6 +312,7 @@
 										type="button"
 										class="d-btn d-btn-xs d-btn-ghost"
 										onclick={() => copyToClipboard(workspaceId)}
+										title="Copy to clipboard"
 									>
 										Copy
 									</button>
@@ -261,6 +328,7 @@
 										type="button"
 										class="d-btn d-btn-xs d-btn-ghost"
 										onclick={() => copyToClipboard(createdDevice.secretKey || '')}
+										title="Copy to clipboard"
 									>
 										Copy
 									</button>

@@ -21,6 +21,7 @@ import com.example.location_tracker_android.ui.theme.LocationtrackerandroidTheme
 import com.example.location_tracker_android.view.home.HomeScreen
 import com.example.location_tracker_android.view.organization.OrganizationScreen
 import com.example.location_tracker_android.view.splash.SplashScreen
+import com.example.location_tracker_android.service.LocationTrackingService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
@@ -108,6 +109,11 @@ class MainActivity : ComponentActivity() {
                                             deviceData = checkResult.device
                                         )
                                         organizationData = orgData
+                                        
+                                        // Start location tracking service
+                                        val deviceIdForTracking = checkResult.device.id ?: (checkResult.device.deviceKey ?: deviceKey)
+                                        LocationTrackingService.startService(this@MainActivity, deviceIdForTracking)
+                                        
                                         showOrganization = false
                                         showHome = true
                                         return@launch
@@ -135,6 +141,13 @@ class MainActivity : ComponentActivity() {
                     locationTrackerDeviceController = locationTrackerDeviceController,
                     onLoginSuccess = { data ->
                         organizationData = data
+                        
+                        // Start location tracking service when device is accepted
+                        val deviceIdForTracking = data.deviceData?.id ?: data.deviceId
+                        if (deviceIdForTracking.isNotBlank()) {
+                            LocationTrackingService.startService(this@MainActivity, deviceIdForTracking)
+                        }
+                        
                         showOrganization = false
                         showHome = true
                     }
