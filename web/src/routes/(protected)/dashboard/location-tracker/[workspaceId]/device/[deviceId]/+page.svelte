@@ -28,6 +28,8 @@
 	let error = $state<string | null>(null);
 	let map = $state<google.maps.Map | null>(null);
 	let marker: google.maps.marker.AdvancedMarkerElement | null = null;
+	let targetMarkers: google.maps.marker.AdvancedMarkerElement[] = [];
+	let routePolylines: google.maps.Polyline[] = [];
 	let mapContainer: HTMLDivElement;
 	let pollingInterval: ReturnType<typeof setInterval> | null = null;
 	let taskPollingInterval: ReturnType<typeof setInterval> | null = null;
@@ -73,6 +75,20 @@
 		}
 	});
 
+	// Reactive effect to update routes when tasks change
+	$effect(() => {
+		if (map && tasks.length > 0 && currentLocation) {
+			updateRoutes();
+		}
+	});
+
+	// Reactive effect to update routes when location changes
+	$effect(() => {
+		if (map && currentLocation && tasks.some(t => t.status === 'accepted' && t.type === 'location')) {
+			updateRoutes();
+		}
+	});
+
 	onMount(async () => {
 		// Load device, workspace, and organization data first
 		try {
@@ -105,7 +121,7 @@
 			return;
 		}
 
-		// Load Google Maps script
+		// Load Google Maps script with geometry library for route decoding
 		try {
 			await loadGoogleMaps();
 		} catch (err) {
@@ -156,11 +172,25 @@
 			clearInterval(taskPollingInterval);
 			taskPollingInterval = null;
 		}
-		// Clean up marker when component is destroyed
+		// Clean up markers when component is destroyed
 		if (marker) {
 			marker.map = null;
 			marker = null;
 		}
+		// Clean up target markers
+		targetMarkers.forEach(m => {
+			if (m) {
+				m.map = null;
+			}
+		});
+		targetMarkers = [];
+		// Clean up route polylines
+		routePolylines.forEach(polyline => {
+			if (polyline) {
+				polyline.setMap(null);
+			}
+		});
+		routePolylines = [];
 		// Clean up map
 		if (map) {
 			// Google Maps doesn't require explicit cleanup, but we can null it
@@ -541,6 +571,178 @@
 		if (!dateString) return 'N/A';
 		return new Date(dateString).toLocaleString();
 	}
+
+	/**
+	 * Decode Google Maps encoded polyline string to array of LatLng objects
+	 */
+	function decodePolyline(encoded: string): google.maps.LatLngLiteral[] {
+		const poly: google.maps.LatLngLiteral[] = [];
+		let index = 0;
+		const len = encoded.length;
+		let lat = 0;
+		let lng = 0;
+
+		while (index < len) {
+			let b: number;
+			let shift = 0;
+			let result = 0;
+			do {
+				b = encoded.charCodeAt(index++) - 63;
+				result = result | ((b & 0x1f) << shift);
+				shift += 5;
+			} while (b >= 0x20);
+			const dlat = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
+			lat += dlat;
+
+			shift = 0;
+			result = 0;
+			do {
+				b = encoded.charCodeAt(index++) - 63;
+				result = result | ((b & 0x1f) << shift);
+				shift += 5;
+			} while (b >= 0x20);
+			const dlng = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
+			lng += dlng;
+
+			poly.push({ lat: lat / 1e5, lng: lng / 1e5 });
+		}
+
+		return poly;
+	}
+
+	async function updateRoutes() {
+		if (!map || !currentLocation || typeof window === 'undefined' || !(window as any).google) {
+			return;
+		}
+
+		const google = (window as any).google;
+
+		// Clear existing routes and target markers
+		routePolylines.forEach(polyline => {
+			if (polyline) {
+				polyline.setMap(null);
+			}
+		});
+		routePolylines = [];
+
+		targetMarkers.forEach(m => {
+			if (m) {
+				m.map = null;
+			}
+		});
+		targetMarkers = [];
+
+		// Get accepted location tasks
+		const acceptedLocationTasks = tasks.filter(
+			t => t.status === 'accepted' && t.type === 'location' && t.targetLatitude && t.targetLongitude
+		);
+
+		if (acceptedLocationTasks.length === 0) {
+			return;
+		}
+
+		// Process each accepted location task
+		for (const task of acceptedLocationTasks) {
+			try {
+				const targetLat = parseFloat(task.targetLatitude!);
+				const targetLng = parseFloat(task.targetLongitude!);
+
+				if (isNaN(targetLat) || isNaN(targetLng)) {
+					continue;
+				}
+
+				// Add target marker
+				const targetPinElement = new google.maps.marker.PinElement({
+					background: '#EA4335',
+					borderColor: '#C5221F',
+					glyphColor: '#FFFFFF',
+					scale: 1.2,
+				});
+
+				const targetMarker = new google.maps.marker.AdvancedMarkerElement({
+					map,
+					position: { lat: targetLat, lng: targetLng },
+					title: `Target: ${task.title}`,
+					content: targetPinElement.element,
+				});
+				targetMarkers.push(targetMarker);
+
+				// Fetch routes from Google Directions API
+				const origin = `${currentLocation.latitude},${currentLocation.longitude}`;
+				const destination = `${targetLat},${targetLng}`;
+				const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&alternatives=true&key=${GOOGLE_MAPS_API_KEY}`;
+
+				const response = await fetch(url);
+				const data = await response.json();
+
+				if (data.status === 'OK' && data.routes && data.routes.length > 0) {
+					const routes = data.routes.slice(0, 5); // Max 5 routes
+					const routeDistances = routes.map((r: any) => r.legs[0].distance.value);
+					const minDistance = Math.min(...routeDistances);
+					const maxDistance = Math.max(...routeDistances);
+
+					routes.forEach((route: any, index: number) => {
+						const routePath = route.overview_polyline.points;
+						// Decode polyline manually (since geometry library encoding may not be available)
+						const decodedPath = decodePolyline(routePath);
+
+						const distance = route.legs[0].distance.value;
+						const ratio = maxDistance > minDistance
+							? (distance - minDistance) / (maxDistance - minDistance)
+							: 0;
+
+						// Color gradient: Green -> Yellow -> Orange -> Red
+						let color: string;
+						if (routes.length === 1) {
+							color = '#4CAF50'; // Green for single route
+						} else {
+							if (ratio <= 0.33) {
+								// Green to Yellow
+								const localRatio = ratio / 0.33;
+								const r = Math.round(76 + (255 - 76) * localRatio);
+								const g = Math.round(175 + (235 - 175) * localRatio);
+								const b = Math.round(80 + (59 - 80) * localRatio);
+								color = `rgb(${r}, ${g}, ${b})`;
+							} else if (ratio <= 0.66) {
+								// Yellow to Orange
+								const localRatio = (ratio - 0.33) / 0.33;
+								const r = 255;
+								const g = Math.round(235 + (152 - 235) * localRatio);
+								const b = Math.round(59 + (0 - 59) * localRatio);
+								color = `rgb(${r}, ${g}, ${b})`;
+							} else {
+								// Orange to Red
+								const localRatio = (ratio - 0.66) / 0.34;
+								const r = Math.round(255 + (244 - 255) * localRatio);
+								const g = Math.round(152 + (67 - 152) * localRatio);
+								const b = Math.round(0 + (54 - 0) * localRatio);
+								color = `rgb(${r}, ${g}, ${b})`;
+							}
+						}
+
+						const polyline = new google.maps.Polyline({
+							path: decodedPath,
+							geodesic: true,
+							strokeColor: color,
+							strokeOpacity: 0.8,
+							strokeWeight: 6,
+							map: map,
+						});
+
+						routePolylines.push(polyline);
+					});
+
+					// Adjust camera to show both origin and destination
+					const bounds = new google.maps.LatLngBounds();
+					bounds.extend({ lat: currentLocation.latitude, lng: currentLocation.longitude });
+					bounds.extend({ lat: targetLat, lng: targetLng });
+					map.fitBounds(bounds, { padding: 50 });
+				}
+			} catch (err) {
+				console.error('[Frontend] Error loading routes for task:', err);
+			}
+		}
+	}
 </script>
 
 <svelte:head>
@@ -577,82 +779,6 @@
 					<span>{error}</span>
 				</div>
 			{/if}
-
-			<!-- Tasks Section -->
-			<div class="d-card bg-base-100 shadow-md">
-				<div class="d-card-body">
-					<div class="flex items-center justify-between mb-4">
-						<h2 class="text-xl font-bold">Tasks</h2>
-						<div class="flex gap-2">
-							<button
-								type="button"
-								class="d-btn d-btn-primary d-btn-sm"
-								onclick={() => openTaskModal('text')}
-							>
-								+ Text Task
-							</button>
-							<button
-								type="button"
-								class="d-btn d-btn-primary d-btn-sm"
-								onclick={() => openTaskModal('location')}
-							>
-								+ Location Task
-							</button>
-						</div>
-					</div>
-
-					{#if loadingTasks}
-						<div class="flex justify-center py-8">
-							<span class="d-loading d-loading-spinner d-loading-md"></span>
-						</div>
-					{:else if tasks.length === 0}
-						<p class="text-sm text-base-content/70 text-center py-8">No tasks assigned yet.</p>
-					{:else}
-						<div class="space-y-3">
-							{#each tasks as task (task.id)}
-								<div class="border border-base-300 rounded-lg p-4">
-									<div class="flex items-start justify-between gap-4">
-										<div class="flex-1">
-											<div class="flex items-center gap-2 mb-2">
-												<span class="d-badge {getStatusColor(task.status)}">{task.status}</span>
-												<span class="d-badge d-badge-outline">{task.type}</span>
-												<h3 class="font-semibold">{task.title}</h3>
-											</div>
-											{#if task.description}
-												<p class="text-sm text-base-content/70 mb-2">{task.description}</p>
-											{/if}
-											{#if task.type === 'location' && task.targetLatitude && task.targetLongitude}
-												<div class="text-xs text-base-content/60 mb-2">
-													Target: {parseFloat(task.targetLatitude).toFixed(6)}, {parseFloat(task.targetLongitude).toFixed(6)}
-												</div>
-											{/if}
-											{#if task.responseMessage}
-												<div class="text-sm text-base-content/70 italic mb-2">
-													Response: {task.responseMessage}
-												</div>
-											{/if}
-											<div class="text-xs text-base-content/50">
-												Created: {formatDate(task.createdAt)} |
-												{#if task.respondedAt}
-													Responded: {formatDate(task.respondedAt)}
-												{/if}
-											</div>
-										</div>
-										<button
-											type="button"
-											class="d-btn d-btn-ghost d-btn-sm d-btn-square"
-											onclick={() => handleDeleteTask(task.id)}
-											title="Delete task"
-										>
-											🗑️
-										</button>
-									</div>
-								</div>
-							{/each}
-						</div>
-					{/if}
-				</div>
-			</div>
 
 			<div class="grid gap-6 lg:grid-cols-3">
 				<!-- Map Container - Always render so it can be bound -->
@@ -727,6 +853,88 @@
 									{/if}
 								</div>
 							</div>
+						</div>
+					{/if}
+				</div>
+			</div>
+
+			<!-- Tasks Section - Below Map -->
+			<div class="d-card bg-base-100 shadow-md">
+				<div class="d-card-body">
+					<div class="flex items-center justify-between mb-4">
+						<h2 class="text-xl font-bold">Tasks</h2>
+						<div class="flex gap-2">
+							<button
+								type="button"
+								class="d-btn d-btn-primary d-btn-sm"
+								onclick={() => openTaskModal('text')}
+							>
+								+ Text Task
+							</button>
+							<button
+								type="button"
+								class="d-btn d-btn-primary d-btn-sm"
+								onclick={() => openTaskModal('location')}
+							>
+								+ Location Task
+							</button>
+						</div>
+					</div>
+
+					{#if loadingTasks}
+						<div class="flex justify-center py-8">
+							<span class="d-loading d-loading-spinner d-loading-md"></span>
+						</div>
+					{:else if tasks.length === 0}
+						<p class="text-sm text-base-content/70 text-center py-8">No tasks assigned yet.</p>
+					{:else}
+						<div class="space-y-3">
+							{#each tasks as task (task.id)}
+								<div class="border border-base-300 rounded-lg p-4 {task.status === 'completed' ? 'bg-success/10' : task.status === 'rejected' ? 'bg-error/10' : task.status === 'accepted' ? 'bg-primary/10' : ''}">
+									<div class="flex items-start justify-between gap-4">
+										<div class="flex-1">
+											<div class="flex items-center gap-2 mb-2">
+												<span class="d-badge {getStatusColor(task.status)}">{task.status}</span>
+												<span class="d-badge d-badge-outline">{task.type}</span>
+												<h3 class="font-semibold">{task.title}</h3>
+											</div>
+											{#if task.description}
+												<p class="text-sm text-base-content/70 mb-2">{task.description}</p>
+											{/if}
+											{#if task.type === 'location' && task.targetLatitude && task.targetLongitude}
+												<div class="text-xs text-primary mb-2 font-medium">
+													📍 Target: {parseFloat(task.targetLatitude).toFixed(6)}, {parseFloat(task.targetLongitude).toFixed(6)}
+													{#if task.status === 'accepted'}
+														<span class="ml-2 text-success">(Routes shown on map)</span>
+													{/if}
+												</div>
+											{/if}
+											{#if task.responseMessage}
+												<div class="text-sm text-base-content/70 italic mb-2">
+													Response: {task.responseMessage}
+												</div>
+											{/if}
+											<div class="text-xs text-base-content/50">
+												Created: {formatDate(task.createdAt)}
+												{#if task.respondedAt}
+													| Responded: {formatDate(task.respondedAt)}
+												{/if}
+												{#if task.completedAt}
+													| Completed: {formatDate(task.completedAt)}
+												{/if}
+											</div>
+										</div>
+										<button
+											type="button"
+											class="d-btn d-btn-ghost d-btn-sm d-btn-square"
+											onclick={() => handleDeleteTask(task.id)}
+											title="Delete task"
+										>
+											🗑️
+										</button>
+									</div>
+								</div>
+							{/each}
 						</div>
 					{/if}
 				</div>

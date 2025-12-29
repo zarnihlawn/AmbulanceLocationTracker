@@ -46,7 +46,7 @@ fun HomeScreen(
             when (selectedTab) {
                 BottomNavItem.MAP -> MapScreen(organizationData = organizationData)
                 BottomNavItem.NOTIFIER -> NotifierScreen(organizationData = organizationData)
-                BottomNavItem.HISTORY -> HistoryScreen()
+                BottomNavItem.HISTORY -> HistoryScreen(organizationData = organizationData)
                 BottomNavItem.PROFILE -> ProfileScreen(
                     organizationData = organizationData,
                     onDeviceDeleted = onDeviceDeleted

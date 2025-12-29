@@ -95,6 +95,8 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     delay(splashController.getSplashDuration())
                     showSplash = false
+                    // Default to showing organization screen
+                    showOrganization = true
 
                     // Check if device is already accepted and go straight to home
                     coroutineScope.launch {
@@ -120,21 +122,19 @@ class MainActivity : ComponentActivity() {
 
                                         showOrganization = false
                                         showHome = true
-                                        return@launch
                                     }
+                                    // If device found but not accepted, keep showing organization screen
                                 }
                                 is LocationTrackerDeviceController.StatusResult.NotFound -> {
-                                    // Device not found, show registration screen
+                                    // Device not found, keep showing organization screen (already set above)
                                 }
                                 is LocationTrackerDeviceController.StatusResult.Error -> {
-                                    // Error checking status, show registration screen
+                                    // Error checking status, keep showing organization screen (already set above)
                                 }
                             }
                         } catch (e: Exception) {
-                            // Error occurred, show registration screen
+                            // Error occurred, keep showing organization screen (already set above)
                         }
-
-                    showOrganization = true
                     }
                 }
             }
